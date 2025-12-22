@@ -211,7 +211,7 @@ local function sendCombinationNotification(combinationPuzzle)
 	end
 
 	table.sort(labels, function(a, b)
-		return a.Name < b.Name
+		return tonumber(a.Name) < tonumber(b.Name)
 	end)
 
 	if #labels == 0 then return end
