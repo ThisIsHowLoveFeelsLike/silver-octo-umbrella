@@ -190,76 +190,68 @@ end)
 local Players = game:GetService("Players")
 local StarterGui = game:GetService("StarterGui")
 
-local running = false
-local notifiedPuzzles = {} -- tracks puzzles already notified
+local puzzlesFolder = workspace:WaitForChild("GameKeeper"):WaitForChild("Puzzles")
 
-local function sendNotification(text)
-    StarterGui:SetCore("SendNotification", {
-        Title = "Combination Puzzle",
-        Text = text,
-        Duration = 6
-    })
+local enabled = false
+local notifiedPuzzles = {}
+
+local function sendCombinationNotification(combinationPuzzle)
+	local combinationKey = combinationPuzzle:FindFirstChild("CombinationKey")
+	if not combinationKey then return end
+
+	local buttonsFolder = combinationKey:FindFirstChild("Buttons")
+	if not buttonsFolder then return end
+
+	local labels = {}
+
+	for _, obj in ipairs(buttonsFolder:GetDescendants()) do
+		if obj:IsA("TextLabel") then
+			table.insert(labels, obj)
+		end
+	end
+
+	table.sort(labels, function(a, b)
+		return a.Name < b.Name
+	end)
+
+	if #labels == 0 then return end
+
+	local textList = {}
+	for _, label in ipairs(labels) do
+		table.insert(textList, label.Text)
+	end
+
+	local finalText = table.concat(textList, " ")
+
+	StarterGui:SetCore("SendNotification", {
+		Title = "Combination Puzzle",
+		Text = finalText,
+		Duration = 6,
+	})
 end
 
-local function processPuzzle(puzzle)
-    if notifiedPuzzles[puzzle] then
-        return
-    end
+task.spawn(function()
+	while true do
+		if enabled then
+			for _, puzzle in ipairs(puzzlesFolder:GetChildren()) do
+				if puzzle:IsA("Model") and puzzle.Name == "CombinationPuzzle" then
+					if not notifiedPuzzles[puzzle] then
+						notifiedPuzzles[puzzle] = true
+						sendCombinationNotification(puzzle)
+					end
+				end
+			end
+		end
+		task.wait(0.5)
+	end
+end)
 
-    local buttonsFolder = puzzle:FindFirstChild("Buttons")
-    if not buttonsFolder then
-        return
-    end
+form:Toggle("Combination Puzzle", "Tells you the 3-Digits code puzzle", function(state)
+	enabled = state
 
-    local labels = {}
-
-    for _, desc in ipairs(buttonsFolder:GetDescendants()) do
-        if desc:IsA("TextLabel") then
-            table.insert(labels, desc)
-        end
-    end
-
-    table.sort(labels, function(a, b)
-        return a.Name < b.Name
-    end)
-
-    if #labels == 0 then
-        return
-    end
-
-    local texts = {}
-    for _, label in ipairs(labels) do
-        table.insert(texts, label.Text)
-    end
-
-    sendNotification(table.concat(texts, " "))
-    notifiedPuzzles[puzzle] = true
-end
-
-local function loop()
-    task.spawn(function()
-        while running do
-            local puzzlesFolder = workspace:FindFirstChild("GameKeeper")
-                and workspace.GameKeeper:FindFirstChild("Puzzles")
-
-            if puzzlesFolder then
-                for _, model in ipairs(puzzlesFolder:GetChildren()) do
-                    if model:IsA("Model") and model.Name == "CombinationPuzzle" then
-                        processPuzzle(model)
-                    end
-                end
-            end
-
-            task.wait(1)
-        end
-    end)
-end
-
-form:Toggle("Combination Code", "What's the code for that number puzzle?", function(state)
-    running = state
-    if state then
-        loop()
-    end
+	if not state then
+		notifiedPuzzles = {}
+	end
 end)
 
 local Running = false
