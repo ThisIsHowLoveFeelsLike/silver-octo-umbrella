@@ -96,49 +96,77 @@ form:Toggle("Collect Power-ups", "Picks up all the power-ups in the map.", funct
     end)
 end)
 
+local RunService = game:GetService("RunService")
+
+-- Keep a reference to the loop task
+local cakeLoop
+
 form:Toggle("Show Cakes", "Adds a sensory perception to Cakes.", function(state)
-    local labeling = state
+    if state then
+        -- start loop
+        cakeLoop = true
+        task.spawn(function()
+            while cakeLoop do
+                local mapFolder = workspace:FindFirstChild("GameKeeper")
+                if mapFolder then
+                    mapFolder = mapFolder:FindFirstChild("Map")
+                end
 
-    task.spawn(function()
-        while labeling do
-            local mapFolder = workspace:FindFirstChild("GameKeeper")
-            if mapFolder then
-                mapFolder = mapFolder:FindFirstChild("Map")
-            end
+                if mapFolder then
+                    local itemsFolder = mapFolder:FindFirstChild("Items")
+                    if itemsFolder then
+                        for _, item in ipairs(itemsFolder:GetChildren()) do
+                            if item:IsA("Model") and item.Name == "CakePlate" then
+                                if not item:FindFirstChild("CakeLabel") then
+                                    local billboard = Instance.new("BillboardGui")
+                                    billboard.Name = "CakeLabel"
+                                    billboard.Size = UDim2.new(1, 25, 1, 15)
+                                    billboard.StudsOffset = Vector3.new(0, 3, 0)
+                                    billboard.AlwaysOnTop = true
+                                    billboard.Parent = item
 
-            if mapFolder then
-                local itemsFolder = mapFolder:FindFirstChild("Items")
-                if itemsFolder then
-                    for _, item in ipairs(itemsFolder:GetChildren()) do
-                        if item:IsA("Model") and item.Name == "CakePlate" then
-                            if not item:FindFirstChild("CakeLabel") then
-
-                                local billboard = Instance.new("BillboardGui")
-                                billboard.Name = "CakeLabel"
-                                billboard.Size = UDim2.new(1, 25, 1, 15)
-                                billboard.StudsOffset = Vector3.new(0, 3, 0)
-                                billboard.AlwaysOnTop = true
-                                billboard.Parent = item
-
-                                local textLabel = Instance.new("TextLabel")
-                                textLabel.Size = UDim2.new(1, 0, 1, 0)
-                                textLabel.BackgroundTransparency = 1
-                                textLabel.Text = "CAKE"
-                                textLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
-                                textLabel.TextStrokeTransparency = 0
-                                textLabel.Font = Enum.Font.Roboto
-                                textLabel.TextScaled = true
-                                textLabel.Parent = billboard
+                                    local textLabel = Instance.new("TextLabel")
+                                    textLabel.Size = UDim2.new(1, 0, 1, 0)
+                                    textLabel.BackgroundTransparency = 1
+                                    textLabel.Text = "CAKE"
+                                    textLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
+                                    textLabel.TextStrokeTransparency = 0
+                                    textLabel.Font = Enum.Font.Roboto
+                                    textLabel.TextScaled = true
+                                    textLabel.Parent = billboard
+                                end
                             end
                         end
                     end
                 end
+
+                task.wait(1)
             end
+        end)
+    else
+        -- toggled off: stop loop
+        cakeLoop = false
 
-            task.wait(1) 
-
+        -- cleanup billboards
+        local mapFolder = workspace:FindFirstChild("GameKeeper")
+        if mapFolder then
+            mapFolder = mapFolder:FindFirstChild("Map")
         end
-    end)
+
+        if mapFolder then
+            local itemsFolder = mapFolder:FindFirstChild("Items")
+            if itemsFolder then
+                for _, item in ipairs(itemsFolder:GetChildren()) do
+                    if item:IsA("Model") and item.Name == "CakePlate" then
+                        local label = item:FindFirstChild("CakeLabel")
+                        if label then
+                            label:Destroy()
+                        end
+                    end
+                end
+            end
+        end
+    end
 end)
 
 local Players = game:GetService("Players")
@@ -187,72 +215,175 @@ form:Toggle("Auto-Solve Cakes Puzzle", "Ensure you hold a slice of Cake first.",
 	end)
 end)
 
-local Players = game:GetService("Players")
-local StarterGui = game:GetService("StarterGui")
+local RunService = game:GetService("RunService")
 
-local puzzlesFolder = workspace:WaitForChild("GameKeeper"):WaitForChild("Puzzles")
+-- Keep the connections in Lua variables
+local puzzleConn
+local keyConn
 
-local enabled = false
-local notifiedPuzzles = {}
+-- === Existing Button logic ===
+local function getButton()
+    local gameKeeper = workspace:FindFirstChild("GameKeeper")
+    if not gameKeeper then return nil end
 
-local function sendCombinationNotification(combinationPuzzle)
-	local combinationKey = combinationPuzzle:FindFirstChild("CombinationKey")
-	if not combinationKey then return end
+    local puzzles = gameKeeper:FindFirstChild("Puzzles")
+    if not puzzles then return nil end
 
-	local buttonsFolder = combinationKey:FindFirstChild("Buttons")
-	if not buttonsFolder then return end
+    local comboPuzzle = puzzles:FindFirstChild("CombinationPuzzle")
+    if not comboPuzzle then return nil end
 
-	local labels = {}
+    local marker = comboPuzzle:FindFirstChild("PuzzleMarker")
+    if not marker then return nil end
 
-	for _, obj in ipairs(buttonsFolder:GetDescendants()) do
-		if obj:IsA("TextLabel") then
-			table.insert(labels, obj)
-		end
-	end
+    local button = marker:FindFirstChild("Button")
+    if not (button and button:IsA("MeshPart")) then return nil end
 
-	table.sort(labels, function(a, b)
-		return tonumber(a.Name) < tonumber(b.Name)
-	end)
-
-	if #labels == 0 then return end
-
-	local textList = {}
-	for _, label in ipairs(labels) do
-		table.insert(textList, label.Text)
-	end
-
-	local finalText = table.concat(textList, " ")
-
-	StarterGui:SetCore("SendNotification", {
-		Title = "Combination Puzzle",
-		Text = finalText,
-		Duration = 6,
-	})
+    return button
 end
 
-task.spawn(function()
-	while true do
-		if enabled then
-			for _, puzzle in ipairs(puzzlesFolder:GetChildren()) do
-				if puzzle:IsA("Model") and puzzle.Name == "CombinationPuzzle" then
-					if not notifiedPuzzles[puzzle] then
-						notifiedPuzzles[puzzle] = true
-						sendCombinationNotification(puzzle)
-					end
-				end
-			end
-		end
-		task.wait(0.5)
-	end
-end)
+local function ensureBillboard(button)
+    local billboard = button:FindFirstChild("ComboBillboard")
+    if billboard then return end
 
-form:Toggle("Combination Puzzle", "Tells you the 3-Digits code puzzle", function(state)
-	enabled = state
+    billboard = Instance.new("BillboardGui")
+    billboard.Name = "ComboBillboard"
+    billboard.Size = UDim2.new(1, 65, 1, 15)
+    billboard.StudsOffset = Vector3.new(0, 2, 0)
+    billboard.AlwaysOnTop = true
+    billboard.Adornee = button
+    billboard.Parent = button
 
-	if not state then
-		notifiedPuzzles = {}
-	end
-end)
+    local textLabel = Instance.new("TextLabel")
+    textLabel.Size = UDim2.new(1, 0, 1, 0)
+    textLabel.BackgroundTransparency = 1
+    textLabel.TextStrokeTransparency = 0
+    textLabel.Text = "COMBINATION"
+    textLabel.TextColor3 = Color3.new(1, 0, 0)
+    textLabel.TextScaled = true
+    textLabel.Font = Enum.Font.Roboto
+    textLabel.Parent = billboard
+end
+
+local function removeBillboard(button)
+    if not button then return end
+    for _, child in ipairs(button:GetChildren()) do
+        if child:IsA("BillboardGui") and child.Name == "ComboBillboard" then
+            child:Destroy()
+        end
+    end
+end
+
+form:Toggle(
+    "Show Combination Puzzle",
+    "Shows you where the combination puzzle is",
+    function(state)
+        if state then
+            if puzzleConn then
+                puzzleConn:Disconnect()
+                puzzleConn = nil
+            end
+
+            puzzleConn = RunService.Heartbeat:Connect(function()
+                local button = getButton()
+                if not button then return end
+
+                if button.Color == Color3.fromRGB(147, 0, 0) then
+                    ensureBillboard(button)
+                elseif button.Color == Color3.fromRGB(67, 176, 15) then
+                    removeBillboard(button)
+                end
+            end)
+        else
+            if puzzleConn then
+                puzzleConn:Disconnect()
+                puzzleConn = nil
+            end
+
+            local button = getButton()
+            if button then
+                removeBillboard(button)
+            end
+        end
+    end
+)
+
+-- === New CombinationKey logic ===
+local function getKeyModel()
+    local gameKeeper = workspace:FindFirstChild("GameKeeper")
+    if not gameKeeper then return nil end
+
+    local puzzles = gameKeeper:FindFirstChild("Puzzles")
+    if not puzzles then return nil end
+
+    local comboPuzzle = puzzles:FindFirstChild("CombinationPuzzle")
+    if not comboPuzzle then return nil end
+
+    local keyModel = comboPuzzle:FindFirstChild("CombinationKey")
+    if not (keyModel and keyModel:IsA("Model")) then return nil end
+
+    return keyModel
+end
+
+local function ensureKeyBillboard(keyModel)
+    local billboard = keyModel:FindFirstChild("KeyBillboard")
+    if billboard then return end
+
+    billboard = Instance.new("BillboardGui")
+    billboard.Name = "KeyBillboard"
+    billboard.Size = UDim2.new(1, 25, 1, 15)
+    billboard.StudsOffset = Vector3.new(0, 3, 0)
+    billboard.AlwaysOnTop = true
+    billboard.Adornee = keyModel:FindFirstChildWhichIsA("BasePart")
+    billboard.Parent = keyModel
+
+    local textLabel = Instance.new("TextLabel")
+    textLabel.Size = UDim2.new(1, 0, 1, 0)
+    textLabel.BackgroundTransparency = 1
+    textLabel.TextStrokeTransparency = 0
+    textLabel.Text = "CODE"
+    textLabel.TextColor3 = Color3.new(1, 0, 0)
+    textLabel.TextScaled = true
+    textLabel.Font = Enum.Font.Roboto
+    textLabel.Parent = billboard
+end
+
+local function removeKeyBillboard(keyModel)
+    if not keyModel then return end
+    for _, child in ipairs(keyModel:GetChildren()) do
+        if child:IsA("BillboardGui") and child.Name == "KeyBillboard" then
+            child:Destroy()
+        end
+    end
+end
+
+form:Toggle(
+    "Show Combination Key",
+    "Shows you where the combination key is",
+    function(state)
+        if state then
+            if keyConn then
+                keyConn:Disconnect()
+                keyConn = nil
+            end
+
+            keyConn = RunService.Heartbeat:Connect(function()
+                local keyModel = getKeyModel()
+                if not keyModel then return end
+                ensureKeyBillboard(keyModel)
+            end)
+        else
+            if keyConn then
+                keyConn:Disconnect()
+                keyConn = nil
+            end
+
+            local keyModel = getKeyModel()
+            if keyModel then
+                removeKeyBillboard(keyModel)
+            end
+        end
+    end
+)
 
 local Running = false
 
@@ -273,6 +404,7 @@ local function createBillboard(part)
 	label.BackgroundTransparency = 1
 	label.Text = "VALVE"
 	label.TextScaled = true
+    label.TextStrokeTransparency = 0
 	label.TextColor3 = Color3.new(0, 0, 1)
 	label.Font = Enum.Font.Roboto
 	label.Parent = gui
@@ -576,6 +708,7 @@ form:Toggle("Auto-Escape the Map", "Auto escapes the map from Banana.", function
                 if model and model:IsA("Model") then
                     local rootPart = model:FindFirstChild("Root")
                     if rootPart and rootPart:IsA("BasePart") then
+                        rootPart.CanCollide = false
                         pcall(function()
                             firetouchinterest(rootPart, hrp, 0)
                             task.wait(0.05)
@@ -588,6 +721,7 @@ form:Toggle("Auto-Escape the Map", "Auto escapes the map from Banana.", function
     else
         exitsRunning = false
         if exitsLoopConn then
+            rootPart.CanCollide = true
             exitsLoopConn:Disconnect()
             exitsLoopConn = nil
         end
