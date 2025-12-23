@@ -863,12 +863,12 @@ setAutoKill = function(state)
                     task.wait(0.5)
                 else
                     local runners = getRunnersList()
-                    if 
-
+                    if #runners == 0 then
                         task.wait(0.4)
                     else
-                        if akIndex > 
-
+                        if akIndex > #runners then
+							akIndex = 1
+						end
                         local entry = runners[akIndex]
                         akIndex = akIndex + 1
                         local my = getHRP()
