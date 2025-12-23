@@ -989,8 +989,7 @@ local function autoCakeLoop()
                 task.wait(AC_SCAN_INTERVAL)
             end
             local plates = getActiveCakePlates()
-            if 
-
+            if #plates == 0 then
                 emptyScans += 1
                 if emptyScans >= AC_EMPTY_SCANS_TO_EXIT then
 
